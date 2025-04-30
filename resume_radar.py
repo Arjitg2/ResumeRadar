@@ -1,4 +1,5 @@
-
+from dotenv import load_dotenv
+load_dotenv()
 
 import streamlit as st
 import os
@@ -8,7 +9,7 @@ import json
 import re
 
 # Configure Gemini API
-GOOGLE_API_KEY="AIzaSyBts6pgL0CaSpfSe8aBFMhCkHmhP4MhXdA"
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 # Function to get Gemini API response
 def get_gemini_response(input_prompt, pdf_content, jd_input):
     # Create the model configuration
