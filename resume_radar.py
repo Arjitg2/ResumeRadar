@@ -9,8 +9,7 @@ import json
 import re
 
 # Configure Gemini API
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
+GOOGLE_API_KEY="AIzaSyBts6pgL0CaSpfSe8aBFMhCkHmhP4MhXdA"
 # Function to get Gemini API response
 def get_gemini_response(input_prompt, pdf_content, jd_input):
     # Create the model configuration
