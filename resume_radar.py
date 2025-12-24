@@ -4,37 +4,34 @@ load_dotenv()
 import streamlit as st
 import os
 import PyPDF2 as pdf
-import google.generativeai as genai
+from google import genai
 import json
 import re
 
-# Configure Gemini API
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Create Gemini client
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+
 # Function to get Gemini API response
 def get_gemini_response(input_prompt, pdf_content, jd_input):
-    # Create the model configuration
-    generation_config = {
-        "temperature": 1,
-        "top_p": 0.95,
-        "top_k": 40,
-        "max_output_tokens": 8192,
-        "response_mime_type": "text/plain",
-    }
-
-    model = genai.GenerativeModel(model_name="gemini-1.5-pro", generation_config=generation_config)
-    
     # Combine inputs
     input_data = f"{input_prompt}\n\nResume Content:\n{pdf_content}\n\nJob Description:\n{jd_input}"
     
-    # Get the response from the model
-    response = model.generate_content([input_data])
-    
-    # Clean the response text
-    cleaned_response = re.sub(r"^```.*?\n|\n```$", "", response.text.strip(), flags=re.DOTALL)
+    # Get the response from the model using the new SDK
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=input_data,
+        config={
+            "temperature": 0.5,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+            "response_mime_type": "application/json",
+        }
+    )
     
     # Parse JSON safely
     try:
-        parsed_response = json.loads(cleaned_response)
+        parsed_response = json.loads(response.text)
         return parsed_response
     except json.JSONDecodeError:
         st.error("Invalid response format received. Please try again.")
@@ -46,7 +43,7 @@ def extract_pdf_text(uploaded_file):
         reader = pdf.PdfReader(uploaded_file)
         text = ""
         for page in reader.pages:
-            text += page.extract_text() or ""  # Handle empty pages gracefully
+            text += page.extract_text() or ""
         return text.strip()
     else:
         raise FileNotFoundError("No PDF File Uploaded")
@@ -89,13 +86,45 @@ if uploaded_file:
     resume_text = extract_pdf_text(uploaded_file)
 
     if submit1:
-        st.subheader("Resume Match Results")
-        response = get_gemini_response(input_prompt1, resume_text, input_text)
+        st.subheader("📊 Resume Match Results")
+        with st.spinner('🔍 Analyzing resume against ATS standards...'):
+            response = get_gemini_response(input_prompt1, resume_text, input_text)
+        
         if response:
-            st.json(response)  # Display clean JSON output
+            # Extract match percentage
+            match_percentage = int(response["JD Match"].replace("%", ""))
+            
+            # Display match metric prominently
+            st.metric(label="🎯 Match Confidence", value=f"{match_percentage}%")
+            st.progress(match_percentage / 100)
+            
+            # Create two columns for better layout
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.error("❌ Missing Keywords")
+                if response["MissingKeywords"]:
+                    for keyword in response["MissingKeywords"]:
+                        st.write(f"• {keyword}")
+                else:
+                    st.write("✅ No missing keywords detected!")
+            
+            with col2:
+                st.success("✨ Profile Summary")
+                st.write(response["Profile Summary"])
 
     if submit2:
-        st.subheader("HR Evaluation")
-        response = get_gemini_response(input_prompt2, resume_text, input_text)
+        st.subheader("👔 HR Evaluation")
+        with st.spinner('💼 Generating professional evaluation...'):
+            response = get_gemini_response(input_prompt2, resume_text, input_text)
+        
         if response:
-            st.json(response)  # Display clean JSON output
+            # Create three sections for evaluation
+            st.success("💪 Strengths")
+            st.write(response["Strengths"])
+            
+            st.warning("⚠️ Areas for Improvement")
+            st.write(response["Weaknesses"])
+            
+            st.info("📝 Overall Evaluation")
+            st.write(response["Overall Evaluation"])
